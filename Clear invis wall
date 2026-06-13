@@ -1,0 +1,382 @@
+local s_char = string.char
+local t_insert = table.insert
+local t_clear = table.clear
+local m_random = math.random
+local t_wait = task.wait
+local t_spawn = task.spawn
+local t_defer = task.defer
+local i_new = Instance.new
+local c3_rgb = Color3.fromRGB
+local ud2_new = UDim2.new
+local ud_new = UDim.new
+
+local clr = cloneref or function(i) return i end
+local clf = clonefunction or function(f) return f end
+local ncc = newcclosure or function(f) return f end
+local get_serv = clf(game.GetService)
+
+local function B(arr)
+    local str = ""
+    for i = 1, #arr do str = str .. s_char(arr[i]) end
+    return str
+end
+
+-- ==================== MÃ HÓA TOÀN BỘ CHUỖI ====================
+local SERVICE_PLAYERS = B({80, 108, 97, 121, 101, 114, 115})
+local SERVICE_RUN = B({82, 117, 110, 83, 101, 114, 118, 105, 99, 101})
+local SERVICE_UIS = B({85, 115, 101, 114, 73, 110, 112, 117, 116, 83, 101, 114, 118, 105, 99, 101})
+local SERVICE_CORE = B({67, 111, 114, 101, 71, 117, 105})
+
+local PROP_PARENT = B({80, 97, 114, 101, 110, 116})
+local PROP_CANCOLLIDE = B({67, 97, 110, 67, 111, 108, 108, 105, 100, 101})
+local PROP_TRANSPARENCY = B({84, 114, 97, 110, 115, 112, 97, 114, 101, 110, 99, 121})
+local PROP_POSITION = B({80, 111, 115, 105, 116, 105, 111, 110})
+local PROP_NAME = B({78, 97, 109, 101})
+local PROP_CFRAME = B({67, 70, 114, 97, 109, 101})
+
+local CLASS_BASEPART = B({66, 97, 115, 101, 80, 97, 114, 116})
+local CLASS_UISTROKE = B({85, 73, 83, 116, 114, 111, 107, 101})
+
+local EVENT_CHARADDED = B({67, 104, 97, 114, 97, 99, 116, 101, 114, 65, 100, 100, 101, 100})
+local EVENT_DESCENDANTADDED = B({68, 101, 115, 99, 101, 110, 100, 97, 110, 116, 65, 100, 100, 101, 100})
+local EVENT_DESCENDANTREMOVING = B({68, 101, 115, 99, 101, 110, 100, 97, 110, 116, 82, 101, 109, 111, 118, 105, 110, 103})
+
+local METHOD_FINDFIRSTCHILD = B({70, 105, 110, 100, 70, 105, 114, 115, 116, 67, 104, 105, 108, 100})
+local METHOD_GETSERVICE = B({71, 101, 116, 83, 101, 114, 118, 105, 99, 101})
+local METHOD_GETDESCENDANTS = B({71, 101, 116, 68, 101, 115, 99, 101, 110, 100, 97, 110, 116, 115})
+local METHOD_ISA = B({73, 115, 65})
+local METHOD_CHANGED = B({67, 104, 97, 110, 103, 101, 100})
+local METHOD_CONNECT = B({67, 111, 110, 110, 101, 99, 116})
+local METHOD_DISCONNECT = B({68, 105, 115, 99, 111, 110, 110, 101, 99, 116})
+local METHOD_GETPARTBOUNDSINRADIUS = B({71, 101, 116, 80, 97, 114, 116, 66, 111, 117, 110, 100, 115, 73, 110, 82, 97, 100, 105, 117, 115})
+
+local findFirstChild = METHOD_FINDFIRSTCHILD
+local isA = METHOD_ISA
+local connect = METHOD_CONNECT
+local getDescendants = METHOD_GETDESCENDANTS
+local changed = METHOD_CHANGED
+local getPartBoundsInRadius = METHOD_GETPARTBOUNDSINRADIUS
+
+-- ==================== KHỞI TẠO SERVICE ====================
+local Players = clr(get_serv(game, SERVICE_PLAYERS))
+local RunService = clr(get_serv(game, SERVICE_RUN))
+local UserInputService = clr(get_serv(game, SERVICE_UIS))
+local CoreGui = clr(get_serv(game, SERVICE_CORE))
+local wrkspace = clr(workspace)
+
+local heartbeat = RunService.Heartbeat
+
+local wsDescendantAdded = wrkspace[EVENT_DESCENDANTADDED]
+local wsDescendantRemoving = wrkspace[EVENT_DESCENDANTREMOVING]
+
+local function _ID_GEN()
+    local charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    local res = ""
+    for i = 1, 16 do
+        local rand = m_random(1, #charset)
+        res = res .. string.sub(charset, rand, rand)
+    end
+    return res
+end
+
+local SECURE_ID = _ID_GEN()
+local LP = clr(Players.LocalPlayer)
+
+-- ==================== BIẾN QUẢN LÝ ====================
+local AntiWallEnabled = false
+local wallStorage = {}
+local charPartsSet = {}
+local scanConnection = nil
+local removeConnection = nil
+local isProcessing = false
+local updateConnection = nil
+local lastProximityUpdate = 0
+
+local COLOR_ON = c3_rgb(0, 255, 127)
+local COLOR_OFF = c3_rgb(255, 255, 255)
+
+local SecureCall = ncc(function(func, ...)
+    local success, err = pcall(func, ...)
+    return success
+end)
+
+-- Cập nhật danh sách các part của nhân vật (hashset)
+local function UpdateCharPartsSet()
+    t_clear(charPartsSet)
+    local char = LP.Character
+    if char then
+        local desc = char[getDescendants](char)
+        for i = 1, #desc do
+            local p = desc[i]
+            if p[isA](p, CLASS_BASEPART) then
+                charPartsSet[p] = true
+            end
+        end
+    end
+end
+
+-- Xử lý một part đơn lẻ
+local function ProcessWall(part)
+    if not part[isA](part, CLASS_BASEPART) then return end
+    if charPartsSet[part] then return end
+    if wallStorage[part] then return end
+    
+    if part[PROP_TRANSPARENCY] >= 1 and part[PROP_CANCOLLIDE] then
+        wallStorage[part] = true
+        part[PROP_CANCOLLIDE] = false
+    end
+end
+
+-- TỐI ƯU CHÍNH: Quét theo bán kính xung quanh player
+local function ScanNearbyParts(radius)
+    local char = LP.Character
+    if not char then return end
+    
+    local hrp = char[findFirstChild](char, "HumanoidRootPart")
+    if not hrp then return end
+    
+    local pos = hrp[PROP_POSITION]
+    local nearbyParts = wrkspace[getPartBoundsInRadius](wrkspace, pos, radius)
+    
+    for i = 1, #nearbyParts do
+        ProcessWall(nearbyParts[i])
+    end
+end
+
+-- Vòng lặp cập nhật liên tục khu vực xung quanh player
+local function StartProximityUpdate()
+    if updateConnection then
+        updateConnection[METHOD_DISCONNECT](updateConnection)
+    end
+    
+    updateConnection = heartbeat[connect](heartbeat, function()
+        if not AntiWallEnabled then
+            if updateConnection then
+                updateConnection[METHOD_DISCONNECT](updateConnection)
+                updateConnection = nil
+            end
+            return
+        end
+        
+        -- Quét bán kính 100 stud mỗi 0.5 giây
+        local currentTime = os.clock()
+        if currentTime - lastProximityUpdate >= 0.3 then
+            lastProximityUpdate = currentTime
+            ScanNearbyParts(200)
+        end
+    end)
+end
+
+-- Bật Anti Wall
+local function EnableAntiWall()
+    if isProcessing then return end
+    isProcessing = true
+    
+    UpdateCharPartsSet()
+    
+    if scanConnection then
+        scanConnection[METHOD_DISCONNECT](scanConnection)
+        scanConnection = nil
+    end
+    if removeConnection then
+        removeConnection[METHOD_DISCONNECT](removeConnection)
+        removeConnection = nil
+    end
+    
+    -- Quét lần đầu toàn bộ workspace
+    local descendants = wrkspace[getDescendants](wrkspace)
+    local total = #descendants
+    for i = 1, total do
+        ProcessWall(descendants[i])
+        if i % 600 == 0 then t_wait() end
+    end
+    
+    -- Lắng nghe part mới xuất hiện
+    scanConnection = wsDescendantAdded[connect](wsDescendantAdded, function(child)
+        if AntiWallEnabled and not isProcessing then
+            ProcessWall(child)
+        end
+    end)
+    
+    -- Dọn dẹp wallStorage khi part bị xóa
+    removeConnection = wsDescendantRemoving[connect](wsDescendantRemoving, function(child)
+        if wallStorage[child] then
+            wallStorage[child] = nil
+        end
+    end)
+    
+    -- Bắt đầu quét proximity
+    lastProximityUpdate = 0
+    StartProximityUpdate()
+    
+    isProcessing = false
+end
+
+-- Tắt và khôi phục
+local function DisableAntiWall()
+    isProcessing = true
+    
+    if scanConnection then
+        scanConnection[METHOD_DISCONNECT](scanConnection)
+        scanConnection = nil
+    end
+    if removeConnection then
+        removeConnection[METHOD_DISCONNECT](removeConnection)
+        removeConnection = nil
+    end
+    if updateConnection then
+        updateConnection[METHOD_DISCONNECT](updateConnection)
+        updateConnection = nil
+    end
+    
+    local count = 0
+    for wall, _ in pairs(wallStorage) do
+        if wall and wall[PROP_PARENT] then
+            wall[PROP_CANCOLLIDE] = true
+            count = count + 1
+            if count % 300 == 0 then t_wait() end
+        end
+    end
+    t_clear(wallStorage)
+    
+    isProcessing = false
+end
+
+-- Hàm toggle chính
+local ToggleInvisibleWalls = ncc(function(state)
+    if state == AntiWallEnabled then return end
+    AntiWallEnabled = state
+    if state then
+        EnableAntiWall()
+    else
+        DisableAntiWall()
+    end
+end)
+
+-- Khi nhân vật respawn
+local charAddedSignal = LP[EVENT_CHARADDED]
+charAddedSignal[connect](charAddedSignal, ncc(function()
+    if not AntiWallEnabled then return end
+    t_wait(0.5)
+    UpdateCharPartsSet()
+    lastProximityUpdate = 0
+    StartProximityUpdate()
+end))
+
+-- ==================== GUI ====================
+local Gui = i_new("ScreenGui")
+Gui[PROP_NAME] = SECURE_ID
+Gui.ResetOnSpawn = false
+
+SecureCall(function()
+    if gethui then
+        Gui[PROP_PARENT] = clr(gethui())
+    elseif syn and syn.protect_gui then
+        syn.protect_gui(Gui)
+        Gui[PROP_PARENT] = CoreGui
+    else
+        Gui[PROP_PARENT] = CoreGui
+    end
+end)
+
+local Main = i_new("Frame")
+Main[PROP_NAME] = _ID_GEN()
+Main[PROP_PARENT] = Gui
+Main.Size = ud2_new(0, 60, 0, 25)
+Main.Position = ud2_new(0.5, -30, 0.2, 0)
+Main.BackgroundColor3 = c3_rgb(0, 0, 0)
+Main.BackgroundTransparency = 0.3
+Main.Active = true
+
+local MainCorner = i_new("UICorner", Main)
+MainCorner.CornerRadius = ud_new(1, 0)
+
+local MainStroke = i_new(CLASS_UISTROKE, Main)
+MainStroke[PROP_NAME] = _ID_GEN()
+MainStroke.Thickness = 0.4
+MainStroke.Color = c3_rgb(0, 0, 0)
+
+local Btn = i_new("TextButton", Main)
+Btn[PROP_NAME] = _ID_GEN()
+Btn.Size = ud2_new(0, 45, 0, 20)
+Btn.Position = ud2_new(0.5, -22.5, 0.5, -10)
+Btn.BackgroundTransparency = 1
+Btn.AutoLocalize = false
+Btn.Text = B({67, 108, 101, 97, 114, 32, 87, 97, 108, 108})
+Btn.TextColor3 = COLOR_OFF
+Btn.Font = Enum.Font.GothamBold
+Btn.TextSize = 10
+Btn.ZIndex = 10
+
+-- ===== DRAG TỐI ƯU =====
+local dragInput = nil
+local dragStartPos = nil
+local dragStartMain = nil
+local dragChangedConn = nil
+
+local function stopDrag()
+    if dragChangedConn then
+        dragChangedConn[METHOD_DISCONNECT](dragChangedConn)
+        dragChangedConn = nil
+    end
+    dragInput = nil
+    dragStartPos = nil
+    dragStartMain = nil
+end
+
+local inputBeganSignal = Main.InputBegan
+inputBeganSignal[connect](inputBeganSignal, function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        stopDrag()
+        dragInput = input
+        dragStartPos = input[PROP_POSITION]
+        dragStartMain = Main.Position
+        local inputChangedSignal = input[changed]
+        dragChangedConn = inputChangedSignal[connect](inputChangedSignal, function()
+            if input.UserInputState == Enum.UserInputState.End then
+                stopDrag()
+            end
+        end)
+    end
+end)
+
+local inputChangedSignal = UserInputService.InputChanged
+inputChangedSignal[connect](inputChangedSignal, function(input)
+    if input == dragInput and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input[PROP_POSITION] - dragStartPos
+        Main.Position = ud2_new(
+            dragStartMain.X.Scale,
+            dragStartMain.X.Offset + delta.X,
+            dragStartMain.Y.Scale,
+            dragStartMain.Y.Offset + delta.Y
+        )
+    end
+end)
+
+local inputEndedSignal = UserInputService.InputEnded
+inputEndedSignal[connect](inputEndedSignal, function(input)
+    if input == dragInput then
+        stopDrag()
+    end
+end)
+
+-- ===== NÚT BẬT/TẮT =====
+local btnClickSignal = Btn.MouseButton1Click
+btnClickSignal[connect](btnClickSignal, ncc(function()
+    SecureCall(function()
+        local newState = not AntiWallEnabled
+        Btn.TextColor3 = newState and COLOR_ON or COLOR_OFF
+        MainStroke.Color = newState and COLOR_ON or c3_rgb(0, 0, 0)
+        t_spawn(ToggleInvisibleWalls, newState)
+    end)
+end))
+
+-- Tự động tắt khi GUI bị hủy
+Gui.Destroying[connect](Gui.Destroying, ncc(function()
+    SecureCall(ToggleInvisibleWalls, false)
+end))
+
+-- Tự hủy script
+t_defer(ncc(function()
+    if script then script:Destroy() end
+end))
