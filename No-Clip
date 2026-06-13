@@ -1,0 +1,444 @@
+local s_char = string.char
+local t_clear = table.clear
+local m_random = math.random
+local t_wait = task.wait
+local t_spawn = task.spawn
+local t_defer = task.defer
+local i_new = Instance.new
+local c3_rgb = Color3.fromRGB
+local ud2_new = UDim2.new
+local ud_new = UDim.new
+local v2_new = Vector2.new
+
+local clr = cloneref or function(i) return i end
+local clf = clonefunction or function(f) return f end
+local ncc = newcclosure or function(f) return f end
+local get_serv = clf(game.GetService)
+
+local function B(arr)
+    local str = ""
+    for i = 1, #arr do str = str .. s_char(arr[i]) end
+    return str
+end
+
+-- ==================== MÃ HÓA TOÀN BỘ CHUỖI ====================
+local SERVICE_PLAYERS = B({80, 108, 97, 121, 101, 114, 115})
+local SERVICE_RUN = B({82, 117, 110, 83, 101, 114, 118, 105, 99, 101})
+local SERVICE_UIS = B({85, 115, 101, 114, 73, 110, 112, 117, 116, 83, 101, 114, 118, 105, 99, 101})
+local SERVICE_CORE = B({67, 111, 114, 101, 71, 117, 105})
+
+local PROP_PARENT = B({80, 97, 114, 101, 110, 116})
+local PROP_CANCOLLIDE = B({67, 97, 110, 67, 111, 108, 108, 105, 100, 101})
+local PROP_CFRAME = B({67, 70, 114, 97, 109, 101})
+local PROP_MOVEDIR = B({77, 111, 118, 101, 68, 105, 114, 101, 99, 116, 105, 111, 110})
+local PROP_POSITION = B({80, 111, 115, 105, 116, 105, 111, 110})
+local PROP_NAME = B({78, 97, 109, 101})
+local PROP_SIT = B({83, 105, 116})
+
+local CLASS_HUMANOID = B({72, 117, 109, 97, 110, 111, 105, 100})
+local CLASS_BASEPART = B({66, 97, 115, 101, 80, 97, 114, 116})
+local CLASS_UISTROKE = B({85, 73, 83, 116, 114, 111, 107, 101})
+
+local EVENT_CHARADDED = B({67, 104, 97, 114, 97, 99, 116, 101, 114, 65, 100, 100, 101, 100})
+local EVENT_DESCENDANTADDED = B({68, 101, 115, 99, 101, 110, 100, 97, 110, 116, 65, 100, 100, 101, 100})
+local EVENT_DESCENDANTREMOVING = B({68, 101, 115, 99, 101, 110, 100, 97, 110, 116, 82, 101, 109, 111, 118, 105, 110, 103})
+local EVENT_CHILDREMOVED = B({67, 104, 105, 108, 100, 82, 101, 109, 111, 118, 101, 100})
+
+local METHOD_FINDFIRSTCHILD = B({70, 105, 110, 100, 70, 105, 114, 115, 116, 67, 104, 105, 108, 100})
+local METHOD_FINDFIRSTCHILDOFCLASS = B({70, 105, 110, 100, 70, 105, 114, 115, 116, 67, 104, 105, 108, 100, 79, 102, 67, 108, 97, 115, 115})
+local METHOD_GETDESCENDANTS = B({71, 101, 116, 68, 101, 115, 99, 101, 110, 100, 97, 110, 116, 115})
+local METHOD_ISA = B({73, 115, 65})
+local METHOD_CHANGED = B({67, 104, 97, 110, 103, 101, 100})
+local METHOD_CONNECT = B({67, 111, 110, 110, 101, 99, 116})
+local METHOD_DISCONNECT = B({68, 105, 115, 99, 111, 110, 110, 101, 99, 116})
+
+local findFirstChild = METHOD_FINDFIRSTCHILD
+local findFirstChildOfClass = METHOD_FINDFIRSTCHILDOFCLASS
+local isA = METHOD_ISA
+local connect = METHOD_CONNECT
+local getDescendants = METHOD_GETDESCENDANTS
+local changed = METHOD_CHANGED
+
+local HRP_NAME = B({72, 117, 109, 97, 110, 111, 105, 100, 82, 111, 111, 116, 80, 97, 114, 116})
+
+-- ==================== KHỞI TẠO SERVICE ====================
+local Players = clr(get_serv(game, SERVICE_PLAYERS))
+local RunService = clr(get_serv(game, SERVICE_RUN))
+local UserInputService = clr(get_serv(game, SERVICE_UIS))
+local CoreGui = clr(get_serv(game, SERVICE_CORE))
+
+local stepped = RunService.Stepped
+local heartbeat = RunService.Heartbeat
+
+local function _ID_GEN()
+    local charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    local res = ""
+    for i = 1, 16 do
+        local rand = m_random(1, #charset)
+        res = res .. string.sub(charset, rand, rand)
+    end
+    return res
+end
+
+local SECURE_ID = _ID_GEN()
+local LP = clr(Players.LocalPlayer)
+
+-- ==================== BIẾN QUẢN LÝ ====================
+local NoclipEnabled = false
+local charParts = {}
+local HRP_Cache, Hum_Cache
+local descendantAddedConn
+local descendantRemovingConn
+local childRemovedConn
+local moveLoopConn
+local charAddedConn
+
+local isBeingCarried = false
+local carryCheckConn = nil
+
+local SecureCall = ncc(function(func, ...)
+    local success, err = pcall(func, ...)
+    return success
+end)
+
+local function checkIfCarried()
+    if not LP.Character then return false end
+    local hum = LP.Character[findFirstChildOfClass](LP.Character, CLASS_HUMANOID)
+    if not hum then return false end
+    
+    if hum[PROP_SIT] then return true end
+    
+    local hrp = LP.Character[findFirstChild](LP.Character, HRP_NAME)
+    if hrp then
+        local vel = hrp.Velocity
+        if math.abs(vel.Y) > 50 and not hum.Jump then
+            return true
+        end
+    end
+    
+    return false
+end
+
+-- ==================== QUẢN LÝ VÒNG LẶP DI CHUYỂN ====================
+local function StopMoveLoop()
+    if moveLoopConn then
+        moveLoopConn[METHOD_DISCONNECT](moveLoopConn)
+        moveLoopConn = nil
+    end
+    if carryCheckConn then
+        carryCheckConn[METHOD_DISCONNECT](carryCheckConn)
+        carryCheckConn = nil
+    end
+    isBeingCarried = false
+end
+
+local function StartMoveLoop()
+    StopMoveLoop()
+    
+    carryCheckConn = heartbeat[connect](heartbeat, function()
+        if not NoclipEnabled then
+            if carryCheckConn then
+                carryCheckConn[METHOD_DISCONNECT](carryCheckConn)
+                carryCheckConn = nil
+            end
+            return
+        end
+        isBeingCarried = checkIfCarried()
+    end)
+    
+    moveLoopConn = stepped[connect](stepped, function()
+        if not NoclipEnabled then
+            StopMoveLoop()
+            return
+        end
+        
+        if isBeingCarried then
+            return
+        end
+        
+        if not LP.Character then
+            StopMoveLoop()
+            return
+        end
+        
+        if not HRP_Cache or not HRP_Cache[PROP_PARENT] then
+            StopMoveLoop()
+            return
+        end
+        
+        if not Hum_Cache or not Hum_Cache[PROP_PARENT] then
+            Hum_Cache = LP.Character[findFirstChildOfClass](LP.Character, CLASS_HUMANOID)
+            if not Hum_Cache then
+                StopMoveLoop()
+                return
+            end
+        end
+        
+        local moveDir = Hum_Cache[PROP_MOVEDIR]
+        if moveDir.Magnitude > 0 then
+            local unitDir = moveDir.Unit
+            HRP_Cache[PROP_CFRAME] = HRP_Cache[PROP_CFRAME] + (unitDir * 0.15)
+        end
+    end)
+end
+
+-- ==================== QUẢN LÝ CHARACTER ====================
+local function BuildCharParts(char)
+    t_clear(charParts)
+    HRP_Cache = char[findFirstChild](char, HRP_NAME)
+    Hum_Cache = char[findFirstChildOfClass](char, CLASS_HUMANOID)
+    
+    local desc = char[getDescendants](char)
+    for i = 1, #desc do
+        local v = desc[i]
+        if v[isA](v, CLASS_BASEPART) then
+            charParts[v] = true
+        end
+    end
+end
+
+local function CleanupCharacter()
+    if descendantAddedConn then
+        descendantAddedConn[METHOD_DISCONNECT](descendantAddedConn)
+        descendantAddedConn = nil
+    end
+    
+    if descendantRemovingConn then
+        descendantRemovingConn[METHOD_DISCONNECT](descendantRemovingConn)
+        descendantRemovingConn = nil
+    end
+    
+    if childRemovedConn then
+        childRemovedConn[METHOD_DISCONNECT](childRemovedConn)
+        childRemovedConn = nil
+    end
+    
+    StopMoveLoop()
+    
+    t_clear(charParts)
+    HRP_Cache = nil
+    Hum_Cache = nil
+end
+
+local function EnableNoclipForCharacter(char)
+    if not char then return end
+    if not NoclipEnabled then return end
+    
+    CleanupCharacter()
+    BuildCharParts(char)
+    
+    isBeingCarried = checkIfCarried()
+    
+    for p in pairs(charParts) do
+        p[PROP_CANCOLLIDE] = false
+    end
+    
+    local descendantAddedSignal = char[EVENT_DESCENDANTADDED]
+    descendantAddedConn = descendantAddedSignal[connect](descendantAddedSignal, function(child)
+        if child[isA](child, CLASS_BASEPART) then
+            SecureCall(function()
+                child[PROP_CANCOLLIDE] = false
+                charParts[child] = true
+            end)
+        end
+    end)
+    
+    local descendantRemovingSignal = char[EVENT_DESCENDANTREMOVING]
+    descendantRemovingConn = descendantRemovingSignal[connect](descendantRemovingSignal, function(child)
+        charParts[child] = nil
+    end)
+    
+    local childRemovedSignal = char[EVENT_CHILDREMOVED]
+    childRemovedConn = childRemovedSignal[connect](childRemovedSignal, function(child)
+        if child == HRP_Cache then
+            StopMoveLoop()
+        elseif child == Hum_Cache then
+            Hum_Cache = nil
+        end
+    end)
+    
+    StartMoveLoop()
+end
+
+local function DisableNoclip()
+    NoclipEnabled = false
+    CleanupCharacter()
+    
+    if LP.Character then
+        local desc = LP.Character[getDescendants](LP.Character)
+        for i = 1, #desc do
+            local v = desc[i]
+            if v[isA](v, CLASS_BASEPART) then
+                v[PROP_CANCOLLIDE] = true
+            end
+        end
+    end
+end
+
+-- ==================== LẮNG NGHE CHARACTER THAY ĐỔI ====================
+local function SetupCharAddedListener()
+    if charAddedConn then
+        charAddedConn[METHOD_DISCONNECT](charAddedConn)
+    end
+    
+    local charAddedSignal = LP[EVENT_CHARADDED]
+    charAddedConn = charAddedSignal[connect](charAddedSignal, ncc(function()
+        if not NoclipEnabled then return end
+        
+        local startTime = os.clock()
+        while not LP.Character or not LP.Character[findFirstChild](LP.Character, HRP_NAME) do
+            if os.clock() - startTime > 3 then return end
+            heartbeat:Wait()
+        end
+        
+        EnableNoclipForCharacter(LP.Character)
+    end))
+end
+
+SetupCharAddedListener()
+
+-- ==================== GUI ====================
+local Gui = i_new("ScreenGui")
+Gui[PROP_NAME] = SECURE_ID
+Gui.ResetOnSpawn = false
+
+SecureCall(function()
+    if gethui then
+        Gui[PROP_PARENT] = clr(gethui())
+    elseif syn and syn.protect_gui then
+        syn.protect_gui(Gui)
+        Gui[PROP_PARENT] = CoreGui
+    else
+        Gui[PROP_PARENT] = CoreGui
+    end
+end)
+
+local Main = i_new("Frame")
+Main[PROP_NAME] = _ID_GEN()
+Main[PROP_PARENT] = Gui
+Main.Size = ud2_new(0, 60, 0, 25)
+Main.Position = ud2_new(0.5, -30, 0.2, 0)
+Main.BackgroundColor3 = c3_rgb(0, 0, 0)
+Main.BackgroundTransparency = 0.3
+Main.Active = true
+Main.BorderSizePixel = 0
+
+local MainCorner = i_new("UICorner", Main)
+MainCorner.CornerRadius = ud_new(1, 0)
+
+local MainStroke = i_new(CLASS_UISTROKE, Main)
+MainStroke[PROP_NAME] = _ID_GEN()
+MainStroke.Thickness = 0.5
+MainStroke.Color = c3_rgb(0, 0, 0)
+
+local Btn = i_new("TextButton", Main)
+Btn[PROP_NAME] = _ID_GEN()
+Btn.Size = ud2_new(0, 45, 0, 20)
+Btn.Position = ud2_new(0.5, -22.5, 0.5, -10)
+Btn.BackgroundTransparency = 1
+Btn.AutoLocalize = false
+Btn.Text = B({78, 111, 99, 108, 105, 112})
+Btn.TextColor3 = c3_rgb(255, 255, 255)
+Btn.Font = Enum.Font.GothamBold
+Btn.TextSize = 10
+Btn.ZIndex = 10
+Btn.BorderSizePixel = 0
+
+local BtnCorner = i_new("UICorner", Btn)
+BtnCorner.CornerRadius = ud_new(1, 0)
+
+-- ==================== DRAG SYSTEM ====================
+local dragInput = nil
+local dragStartPos = nil
+local dragStartMain = nil
+local dragChangedConn = nil
+local dragEndedConn = nil
+
+local function stopDrag()
+    if dragChangedConn then
+        dragChangedConn[METHOD_DISCONNECT](dragChangedConn)
+        dragChangedConn = nil
+    end
+    if dragEndedConn then
+        dragEndedConn[METHOD_DISCONNECT](dragEndedConn)
+        dragEndedConn = nil
+    end
+    dragInput = nil
+    dragStartPos = nil
+    dragStartMain = nil
+end
+
+local inputBeganSignal = Main.InputBegan
+inputBeganSignal[connect](inputBeganSignal, function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        stopDrag()
+        
+        dragInput = input
+        dragStartPos = input[PROP_POSITION]
+        dragStartMain = Main.Position
+        
+        local inputChangedSignal = input[changed]
+        dragChangedConn = inputChangedSignal[connect](inputChangedSignal, function()
+            if input.UserInputState == Enum.UserInputState.End then
+                stopDrag()
+            end
+        end)
+        
+        local inputEndedSignal = UserInputService.InputEnded
+        dragEndedConn = inputEndedSignal[connect](inputEndedSignal, function(endedInput)
+            if endedInput == input then
+                stopDrag()
+            end
+        end)
+    end
+end)
+
+local inputChangedSignal = UserInputService.InputChanged
+inputChangedSignal[connect](inputChangedSignal, function(input)
+    if input == dragInput and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input[PROP_POSITION] - dragStartPos
+        Main.Position = ud2_new(
+            dragStartMain.X.Scale,
+            dragStartMain.X.Offset + delta.X,
+            dragStartMain.Y.Scale,
+            dragStartMain.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- ==================== NÚT BẬT/TẮT ====================
+local btnClickSignal = Btn.MouseButton1Click
+btnClickSignal[connect](btnClickSignal, ncc(function()
+    SecureCall(function()
+        if NoclipEnabled then
+            Btn.TextColor3 = c3_rgb(255, 255, 255)
+            MainStroke.Color = c3_rgb(0, 0, 0)
+            DisableNoclip()
+        else
+            NoclipEnabled = true
+            Btn.TextColor3 = c3_rgb(0, 255, 127)
+            MainStroke.Color = c3_rgb(0, 255, 127)
+            
+            if LP.Character then
+                EnableNoclipForCharacter(LP.Character)
+            end
+        end
+    end)
+end))
+
+-- ==================== DỌN DẸP KHI GUI BỊ XÓA ====================
+Gui.Destroying:Connect(function()
+    if NoclipEnabled then
+        DisableNoclip()
+    end
+    if charAddedConn then
+        charAddedConn[METHOD_DISCONNECT](charAddedConn)
+        charAddedConn = nil
+    end
+    stopDrag()
+end)
+
+-- ==================== TỰ HỦY SCRIPT GỐC ====================
+t_defer(ncc(function()
+    if script then script:Destroy() end
+end))
