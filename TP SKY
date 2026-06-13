@@ -1,0 +1,260 @@
+local s_char = string.char
+local m_random = math.random
+local t_wait = task.wait
+local t_spawn = task.spawn
+local t_defer = task.defer
+local i_new = Instance.new
+local c3_rgb = Color3.fromRGB
+local ud2_new = UDim2.new
+local ud_new = UDim.new
+local v3_new = Vector3.new
+local cf_new = CFrame.new
+
+local clr = cloneref or function(i) return i end
+local clf = clonefunction or function(f) return f end
+local ncc = newcclosure or function(f) return f end
+local get_serv = clf(game.GetService)
+
+local function B(arr)
+    local str = ""
+    for i = 1, #arr do str = str .. s_char(arr[i]) end
+    return str
+end
+
+-- ==================== MÃ HÓA TOÀN BỘ CHUỖI ====================
+local SERVICE_PLAYERS = B({80, 108, 97, 121, 101, 114, 115})
+local SERVICE_UIS = B({85, 115, 101, 114, 73, 110, 112, 117, 116, 83, 101, 114, 118, 105, 99, 101})
+local SERVICE_CORE = B({67, 111, 114, 101, 71, 117, 105})
+
+local PROP_PARENT = B({80, 97, 114, 101, 110, 116})
+local PROP_NAME = B({78, 97, 109, 101})
+local PROP_POSITION = B({80, 111, 115, 105, 116, 105, 111, 110})
+local PROP_PIVOT = B({71, 101, 116, 80, 105, 118, 111, 116})
+local PROP_TEXTSIZE = B({84, 101, 120, 116, 83, 105, 122, 101})
+local PROP_TEXT = B({84, 101, 120, 116})
+local PROP_ZINDEX = B({90, 73, 110, 100, 101, 120})
+local PROP_BGTRANSPARENCY = B({66, 97, 99, 107, 103, 114, 111, 117, 110, 100, 84, 114, 97, 110, 115, 112, 97, 114, 101, 110, 99, 121})
+local PROP_BGCOLOR3 = B({66, 97, 99, 107, 103, 114, 111, 117, 110, 100, 67, 111, 108, 111, 114, 51})
+local PROP_TEXTCOLOR3 = B({84, 101, 120, 116, 67, 111, 108, 111, 114, 51})
+local PROP_FONT = B({70, 111, 110, 116})
+local PROP_BORDERSIZEPIXEL = B({66, 111, 114, 100, 101, 114, 83, 105, 122, 101, 80, 105, 120, 101, 108})
+local PROP_ACTIVE = B({65, 99, 116, 105, 118, 101})
+local PROP_RESETONSPAWN = B({82, 101, 115, 101, 116, 79, 110, 83, 112, 97, 119, 110})
+local PROP_AUTOLOCALIZE = B({65, 117, 116, 111, 76, 111, 99, 97, 108, 105, 122, 101})
+local PROP_SIZE = B({83, 105, 122, 101})
+local PROP_CORNERRADIUS = B({67, 111, 114, 110, 101, 114, 82, 97, 100, 105, 117, 115})
+local PROP_THICKNESS = B({84, 104, 105, 99, 107, 110, 101, 115, 115})
+local PROP_COLOR = B({67, 111, 108, 111, 114})
+
+local CLASS_BASEPART = B({66, 97, 115, 101, 80, 97, 114, 116})
+local CLASS_SCRGUI = B({83, 99, 114, 101, 101, 110, 71, 117, 105})
+local CLASS_FRAME = B({70, 114, 97, 109, 101})
+local CLASS_TXTBUTTON = B({84, 101, 120, 116, 66, 117, 116, 116, 111, 110})
+local CLASS_UICORNER = B({85, 73, 67, 111, 114, 110, 101, 114})
+local CLASS_UISTROKE = B({85, 73, 83, 116, 114, 111, 107, 101})
+
+local METHOD_GETDESCENDANTS = B({71, 101, 116, 68, 101, 115, 99, 101, 110, 100, 97, 110, 116, 115})
+local METHOD_ISA = B({73, 115, 65})
+local METHOD_CHANGED = B({67, 104, 97, 110, 103, 101, 100})
+local METHOD_CONNECT = B({67, 111, 110, 110, 101, 99, 116})
+local METHOD_DISCONNECT = B({68, 105, 115, 99, 111, 110, 110, 101, 99, 116})
+local METHOD_PIVOTTO = B({80, 105, 118, 111, 116, 84, 111})
+
+local PROP_ASLINEARVEL = B({65, 115, 115, 101, 109, 98, 108, 121, 76, 105, 110, 101, 97, 114, 86, 101, 108, 111, 99, 105, 116, 121})
+local PROP_ASANGULARVEL = B({65, 115, 115, 101, 109, 98, 108, 121, 65, 110, 103, 117, 108, 97, 114, 86, 101, 108, 111, 99, 105, 116, 121})
+
+-- Mã hóa Enum
+local ENUM_MOUSEBUTTON1 = B({77, 111, 117, 115, 101, 66, 117, 116, 116, 111, 110, 49})
+local ENUM_TOUCH = B({84, 111, 117, 99, 104})
+local ENUM_MOUSEMOVEMENT = B({77, 111, 117, 115, 101, 77, 111, 118, 101, 109, 101, 110, 116})
+local ENUM_END = B({69, 110, 100})
+local ENUM_GOTHAM = B({71, 111, 116, 104, 97, 109, 66, 111, 108, 100})
+
+-- Cache method name
+local isA = METHOD_ISA
+local connect = METHOD_CONNECT
+local getDescendants = METHOD_GETDESCENDANTS
+local changed = METHOD_CHANGED
+local disconnect = METHOD_DISCONNECT
+
+-- ==================== KHỞI TẠO SERVICE ====================
+local Players = clr(get_serv(game, SERVICE_PLAYERS))
+local UserInputService = clr(get_serv(game, SERVICE_UIS))
+local CoreGui = clr(get_serv(game, SERVICE_CORE))
+
+-- Cache Enum references
+local UIT_MOUSE1 = Enum.UserInputType[ENUM_MOUSEBUTTON1]
+local UIT_TOUCH = Enum.UserInputType[ENUM_TOUCH]
+local UIT_MOUSE_MOVE = Enum.UserInputType[ENUM_MOUSEMOVEMENT]
+local UIS_END = Enum.UserInputState[ENUM_END]
+local FONT_GOTHAM = Enum.Font[ENUM_GOTHAM]
+
+local function _ID_GEN()
+    local charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    local res = ""
+    for i = 1, 12 do
+        local rand = m_random(1, #charset)
+        res = res .. string.sub(charset, rand, rand)
+    end
+    return res
+end
+
+local SECURE_ID = _ID_GEN()
+local LP = clr(Players.LocalPlayer)
+local V3_ZERO = v3_new(0, 0, 0)
+
+local SecureCall = ncc(function(func, ...)
+    local success, err = pcall(func, ...)
+    return success
+end)
+
+-- ==================== SAFE TELEPORT ====================
+local function SafeTeleport(targetCFrame)
+    local char = LP.Character
+    if not char then return end
+    
+    SecureCall(function()
+        local desc = char[getDescendants](char)
+        for i = 1, #desc do
+            local part = desc[i]
+            if part[isA](part, CLASS_BASEPART) then
+                part[PROP_ASLINEARVEL] = V3_ZERO
+                part[PROP_ASANGULARVEL] = V3_ZERO
+            end
+        end
+        char[METHOD_PIVOTTO](char, targetCFrame)
+    end)
+end
+
+-- ==================== GUI BẢO MẬT ====================
+local Gui = i_new(CLASS_SCRGUI)
+Gui[PROP_NAME] = SECURE_ID
+Gui[PROP_RESETONSPAWN] = false
+
+SecureCall(function()
+    if gethui then
+        Gui[PROP_PARENT] = clr(gethui())
+    elseif syn and syn.protect_gui then
+        syn.protect_gui(Gui)
+        Gui[PROP_PARENT] = CoreGui
+    else
+        Gui[PROP_PARENT] = CoreGui
+    end
+end)
+
+local Main = i_new(CLASS_FRAME)
+Main[PROP_NAME] = _ID_GEN()
+Main[PROP_PARENT] = Gui
+Main[PROP_SIZE] = ud2_new(0, 60, 0, 25)
+Main[PROP_POSITION] = ud2_new(0.5, -30, 0.5, 0)
+Main[PROP_BGCOLOR3] = c3_rgb(0, 0, 0)
+Main[PROP_BGTRANSPARENCY] = 0.3
+Main[PROP_ACTIVE] = true
+Main[PROP_BORDERSIZEPIXEL] = 0
+
+local MainCorner = i_new(CLASS_UICORNER, Main)
+MainCorner[PROP_CORNERRADIUS] = ud_new(1, 0)
+
+-- ==================== UISTROKE ====================
+local MainStroke = i_new(CLASS_UISTROKE, Main)
+MainStroke[PROP_NAME] = _ID_GEN()
+MainStroke[PROP_THICKNESS] = 0.3
+MainStroke[PROP_COLOR] = c3_rgb(0, 0, 0)  -- Màu đen cùng màu nền
+
+local Btn = i_new(CLASS_TXTBUTTON, Main)
+Btn[PROP_NAME] = _ID_GEN()
+Btn[PROP_SIZE] = ud2_new(0, 45, 0, 20)
+Btn[PROP_POSITION] = ud2_new(0.5, -22.5, 0.5, -10)
+Btn[PROP_BGTRANSPARENCY] = 1
+Btn[PROP_AUTOLOCALIZE] = false
+Btn[PROP_TEXT] = "TP SKY"
+Btn[PROP_TEXTCOLOR3] = c3_rgb(255, 255, 255)
+Btn[PROP_FONT] = FONT_GOTHAM
+Btn[PROP_TEXTSIZE] = 10
+Btn[PROP_ZINDEX] = 10
+Btn[PROP_BORDERSIZEPIXEL] = 0
+
+local BtnCorner = i_new(CLASS_UICORNER, Btn)
+BtnCorner[PROP_CORNERRADIUS] = ud_new(1, 0)
+
+-- ==================== DRAG SYSTEM (CỰC HẠN) ====================
+local dragInput = nil
+local dragStartPos = nil
+local dragStartMain = nil
+local dragChangedConn = nil
+local dragEndedConn = nil
+
+local function stopDrag()
+    if dragChangedConn then
+        dragChangedConn[disconnect](dragChangedConn)
+        dragChangedConn = nil
+    end
+    if dragEndedConn then
+        dragEndedConn[disconnect](dragEndedConn)
+        dragEndedConn = nil
+    end
+    dragInput = nil
+    dragStartPos = nil
+    dragStartMain = nil
+end
+
+local inputBeganSignal = Main.InputBegan
+inputBeganSignal[connect](inputBeganSignal, ncc(function(input)
+    if input.UserInputType == UIT_MOUSE1 or input.UserInputType == UIT_TOUCH then
+        stopDrag()
+        
+        dragInput = input
+        dragStartPos = input[PROP_POSITION]
+        dragStartMain = Main[PROP_POSITION]
+        
+        local inputChangedSignal = input[changed]
+        dragChangedConn = inputChangedSignal[connect](inputChangedSignal, ncc(function()
+            if input.UserInputState == UIS_END then
+                stopDrag()
+            end
+        end))
+        
+        local inputEndedSignal = UserInputService.InputEnded
+        dragEndedConn = inputEndedSignal[connect](inputEndedSignal, ncc(function(endedInput)
+            if endedInput == input then
+                stopDrag()
+            end
+        end))
+    end
+end))
+
+local inputChangedSignal = UserInputService.InputChanged
+inputChangedSignal[connect](inputChangedSignal, ncc(function(input)
+    if input == dragInput and (input.UserInputType == UIT_MOUSE_MOVE or input.UserInputType == UIT_TOUCH) then
+        local delta = input[PROP_POSITION] - dragStartPos
+        Main[PROP_POSITION] = ud2_new(
+            dragStartMain.X.Scale,
+            dragStartMain.X.Offset + delta.X,
+            dragStartMain.Y.Scale,
+            dragStartMain.Y.Offset + delta.Y
+        )
+    end
+end))
+
+-- ==================== NÚT TELEPORT ====================
+local btnClickSignal = Btn.MouseButton1Click
+btnClickSignal[connect](btnClickSignal, ncc(function()
+    if not LP.Character then return end
+    
+    Btn[PROP_TEXTCOLOR3] = c3_rgb(0, 255, 127)
+    MainStroke[PROP_COLOR] = c3_rgb(0, 255, 127)  -- Viền xanh khi bấm
+    
+    local targetCF = LP.Character[PROP_PIVOT](LP.Character) * cf_new(0, 500, 0)
+    SafeTeleport(targetCF)
+    
+    t_spawn(ncc(function()
+        t_wait(0.1)
+        Btn[PROP_TEXTCOLOR3] = c3_rgb(255, 255, 255)
+        MainStroke[PROP_COLOR] = c3_rgb(0, 0, 0)  -- Viền về đen sau 0.5s
+    end))
+end))
+
+-- ==================== TỰ HỦY SCRIPT ====================
+t_defer(ncc(function()
+    if script then script:Destroy() end
+end))
