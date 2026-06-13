@@ -1,0 +1,246 @@
+local s_char = string.char
+local m_random = math.random
+local t_wait = task.wait
+local t_spawn = task.spawn
+local t_defer = task.defer
+local t_insert = table.insert
+local t_clear = table.clear
+local i_new = Instance.new
+local c3_rgb = Color3.fromRGB
+local ud2_new = UDim2.new
+local ud_new = UDim.new
+local v3_new = Vector3.new
+local cf_new = CFrame.new
+
+-- Kỹ thuật sao chép hàm & tham chiếu bảo mật (Ghosting)
+local clr = cloneref or function(i) return i end
+local clf = clonefunction or function(f) return f end
+local ncc = newcclosure or function(f) return f end
+
+local get_serv = clf(game.GetService)
+
+-- 2. BYTECODE OBFUSCATION (Giải mã dãy số thành từ khóa ẩn)
+local function B(arr)
+    local str = ""
+    for i = 1, #arr do str = str .. s_char(arr[i]) end
+    return str
+end
+
+-- Lấy Service bằng dãy số (Chống Static Scan)
+local Players = clr(get_serv(game, B({80, 108, 97, 121, 101, 114, 115}))) -- "Players"
+local RunService = clr(get_serv(game, B({82, 117, 110, 83, 101, 114, 118, 105, 99, 101}))) -- "RunService"
+local UserInputService = clr(get_serv(game, B({85, 115, 101, 114, 73, 110, 112, 117, 116, 83, 101, 114, 118, 105, 99, 101}))) -- "UserInputService"
+local CoreGui = clr(get_serv(game, B({67, 111, 114, 101, 71, 117, 105}))) -- "CoreGui"
+
+-- 3. BỘ TẠO ID SIÊU CẤP & SECURE CALL
+local function _ID_GEN()
+    local charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    local res = ""
+    for i = 1, 16 do
+        local rand = m_random(1, #charset)
+        res = res .. string.sub(charset, rand, rand)
+    end
+    return res
+end
+
+local SECURE_ID = _ID_GEN()
+local LP = clr(Players.LocalPlayer)
+
+local SecureCall = ncc(function(func, ...)
+    local success, err = pcall(func, ...)
+    return success
+end)
+
+-- BIẾN LOGIC FLY GỐC & BỘ NHỚ ĐỆM (CACHE)
+local flying = false
+local bv
+local charParts = {}      -- Bộ nhớ đệm lưu các bộ phận nhân vật
+local dynamicConnection   -- Lắng nghe nếu nhân vật cầm thêm Tool mới khi đang bay
+
+-- Hàm cập nhật bộ nhớ đệm nhân vật (Chỉ chạy 1 lần khi bật)
+local function CacheCharacterParts(char)
+    t_clear(charParts)
+    if not char then return end
+    local desc = char:GetDescendants()
+    local basepart_str = B({66, 97, 115, 101, 80, 97, 114, 116}) -- "BasePart"
+    for i = 1, #desc do
+        local v = desc[i]
+        if v:IsA(basepart_str) then
+            t_insert(charParts, v)
+        end
+    end
+end
+
+-- 4. BẢO MẬT GIAO DIỆN TỐI ĐA (GUI)
+local ScreenGui = i_new("ScreenGui")
+ScreenGui.Name = SECURE_ID
+ScreenGui.ResetOnSpawn = false
+
+SecureCall(function()
+    if gethui then
+        ScreenGui.Parent = clr(gethui())
+    elseif syn and syn.protect_gui then
+        syn.protect_gui(ScreenGui)
+        ScreenGui.Parent = CoreGui
+    else
+        ScreenGui.Parent = CoreGui
+    end
+end)
+
+local Main = i_new("Frame")
+Main.Name = _ID_GEN()
+Main.Parent = ScreenGui
+Main.Size = ud2_new(0, 75, 0, 30)
+Main.Position = ud2_new(0.5, -40, 0.4, 0)
+Main.BackgroundColor3 = c3_rgb(0, 0, 0)
+Main.BackgroundTransparency = 0.5
+Main.BorderSizePixel = 0
+Main.Active = true
+
+local MainCorner = i_new("UICorner", Main)
+MainCorner.CornerRadius = ud_new(0, 6)
+
+local Stroke = i_new("UIStroke", Main)
+Stroke.Thickness = 0.8
+Stroke.Color = c3_rgb(255, 255, 255)
+Stroke.Transparency = 0.4
+
+local Separator = i_new("Frame", Main)
+Separator.Name = _ID_GEN()
+Separator.Size = ud2_new(0, 1, 0, 16)
+Separator.Position = ud2_new(0.5, 0, 0.5, -8)
+Separator.BackgroundColor3 = c3_rgb(150, 150, 150)
+Separator.BackgroundTransparency = 0.2
+Separator.BorderSizePixel = 0
+
+local ToggleBtn = i_new("TextButton", Main)
+ToggleBtn.Name = _ID_GEN()
+ToggleBtn.Size = ud2_new(0.5, -12, 1, -12)
+ToggleBtn.Position = ud2_new(0, 6, 0, 6)
+ToggleBtn.BackgroundTransparency = 1 
+ToggleBtn.AutoLocalize = false
+ToggleBtn.Font = Enum.Font.GothamBold
+ToggleBtn.Text = "OFF"
+ToggleBtn.TextColor3 = c3_rgb(255, 255, 255)
+ToggleBtn.TextSize = 9
+ToggleBtn.ZIndex = 2
+
+local SpeedInput = i_new("TextBox", Main)
+SpeedInput.Name = _ID_GEN()
+SpeedInput.Size = ud2_new(0.5, -12, 1, -12)
+SpeedInput.Position = ud2_new(0.5, 6, 0, 6)
+SpeedInput.BackgroundTransparency = 1 
+SpeedInput.AutoLocalize = false
+SpeedInput.Font = Enum.Font.GothamSemibold
+SpeedInput.Text = "50"
+SpeedInput.TextColor3 = c3_rgb(255, 255, 255)
+SpeedInput.TextSize = 9
+SpeedInput.ClearTextOnFocus = false
+
+-- 5. HỆ THỐNG KÉO THẢ BẢO MẬT (Đã bọc C-Closure)
+local dragging, dragInput, dragStart, startPos
+Main.InputBegan:Connect(ncc(function(input)
+    if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+        dragging = true
+        dragStart = input.Position
+        startPos = Main.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end))
+
+Main.InputChanged:Connect(ncc(function(input)
+    if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        dragInput = input
+    end
+end))
+
+UserInputService.InputChanged:Connect(ncc(function(input)
+    if dragging and input == dragInput then
+        local delta = input.Position - dragStart
+        Main.Position = ud2_new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end))
+
+-- 6. LOGIC FLY SIÊU TỐI ƯU FPS
+ToggleBtn.MouseButton1Click:Connect(ncc(function()
+    SecureCall(function()
+        flying = not flying
+        local char = LP.Character
+        local hrp_str = B({72, 117, 109, 97, 110, 111, 105, 100, 82, 111, 111, 116, 80, 97, 114, 116}) -- "HumanoidRootPart"
+        local hum_str = B({72, 117, 109, 97, 110, 111, 105, 100}) -- "Humanoid"
+        local basepart_str = B({66, 97, 115, 101, 80, 97, 114, 116}) -- "BasePart"
+
+        if not char or not char:FindFirstChild(hrp_str) then return end
+        local root = char:FindFirstChild(hrp_str)
+        local hum = char:FindFirstChildOfClass(hum_str)
+
+        if flying then
+            ToggleBtn.Text = "ON"
+            ToggleBtn.TextColor3 = c3_rgb(0, 255, 127)
+            
+            bv = i_new("BodyVelocity", root)
+            bv.MaxForce = v3_new(9e9, 9e9, 9e9)
+            hum.PlatformStand = true
+            
+            -- [TỐI ƯU CHÍ MẠNG]: Quét và lưu bộ nhớ đệm trước khi vào vòng lặp
+            CacheCharacterParts(char)
+            
+            -- Lắng nghe động: Nếu cầm thêm vũ khí/vật phẩm mới lúc đang bay, tự thêm vào cache
+            dynamicConnection = char.DescendantAdded:Connect(ncc(function(v)
+                if v:IsA(basepart_str) then
+                    t_insert(charParts, v)
+                end
+            end))
+            
+            t_spawn(ncc(function()
+                while flying do
+                    local cam = workspace.CurrentCamera
+                    local spd = tonumber(SpeedInput.Text) or 50
+                    local moveDir = hum.MoveDirection
+                    
+                    -- [TỐI ƯU CHÍ MẠNG]: Chỉ lặp qua mảng lưu sẵn, không GetDescendants() nữa!
+                    for i = 1, #charParts do
+                        local part = charParts[i]
+                        if part and part.Parent then
+                            part.CanCollide = false
+                        end
+                    end
+
+                    if moveDir.Magnitude > 0 then
+                        local forwardInput = moveDir:Dot(cam.CFrame.LookVector)
+                        local sideInput = moveDir:Dot(cam.CFrame.RightVector)
+                        bv.Velocity = (cam.CFrame.LookVector * forwardInput + cam.CFrame.RightVector * sideInput).Unit * spd
+                    else
+                        bv.Velocity = v3_new(0, 0, 0)
+                    end
+                    
+                    root.CFrame = cf_new(root.Position, root.Position + cam.CFrame.LookVector)
+                    RunService.RenderStepped:Wait()
+                end
+            end))
+        else
+            ToggleBtn.Text = "OFF"
+            ToggleBtn.TextColor3 = c3_rgb(255, 255, 255)
+            
+            if dynamicConnection then dynamicConnection:Disconnect() end
+            if bv then bv:Destroy() end
+            if hum then hum.PlatformStand = false end
+            
+            -- Khôi phục va chạm từ bộ nhớ đệm
+            for i = 1, #charParts do
+                local part = charParts[i]
+                if part and part.Parent then
+                    part.CanCollide = true
+                end
+            end
+            t_clear(charParts) -- Giải phóng bộ nhớ RAM tạm
+        end
+    end)
+end))
+
+-- 7. ZERO MEMORY TRACE (Tự hủy script khỏi máy để tránh rác RAM)
+t_defer(ncc(function()
+    if script then script:Destroy() end
+end))
